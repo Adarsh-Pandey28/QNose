@@ -1,44 +1,49 @@
 import pandas as pd
 import joblib
 import numpy as np
-import urllib.request
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 def main():
-    print("--- Running Classical SVM ---")
+    print("--- Running Classical SVM on General Disease Dataset ---")
     
-    url = "https://archive.ics.uci.edu/ml/machine-learning-databases/parkinsons/parkinsons.data"
-    os.makedirs("data", exist_ok=True)
-    if not os.path.exists("data/parkinsons.csv"):
-        print("Downloading UCI Parkinson's Dataset...")
-        urllib.request.urlretrieve(url, "data/parkinsons.csv")
-
-    df = pd.read_csv('data/parkinsons.csv')
-    df = df.drop('name', axis=1)
+    # Use the local synthetic dataset
+    df = pd.read_csv('data/qnose_synthetic_dataset.csv')
     
-    X = df.drop('status', axis=1)
-    y = df['status']
+    # Target: is_diseased (0 = Healthy, 1 = Diseased)
+    y = df['is_diseased'].values
     
-    scaler = MinMaxScaler()
+    # Features: Pick only the ppb and ppm sensory data
+    feature_cols = [c for c in df.columns if c.endswith('_ppb') or c.endswith('_ppm')]
+    X = df[feature_cols]
+    
+    # Compute the average healthy profile to use in the UI later
+    healthy_mean = df[df['is_diseased'] == 0][feature_cols].mean().values
+    joblib.dump(healthy_mean, 'healthy_mean.pkl')
+    
+    # Save feature names
+    joblib.dump(feature_cols, 'feature_cols.pkl')
+    
+    # Better to use StandardScaler for general biological VOCs
+    scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     joblib.dump(scaler, 'scaler.pkl')
     
-    # Save the mean values to pad Streamlit UI inputs properly later
+    # Save the global mean for padding
     joblib.dump(X.mean().values, 'x_mean.pkl')
     
-    # PCA down to 5 components for quantum embedding suitability
+    # PCA down to 5 components for the 5-qubit quantum embedding
     pca = PCA(n_components=5)
     X_pca = pca.fit_transform(X_scaled)
     joblib.dump(pca, 'pca.pkl')
     
-    X_train, X_test, y_train, y_test = train_test_split(X_pca, y, test_size=0.3, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_pca, y, test_size=0.3, random_state=42, stratify=y)
     
-    svm = SVC(kernel='rbf')
+    svm = SVC(kernel='rbf', probability=True)
     svm.fit(X_train, y_train)
     y_pred = svm.predict(X_test)
     

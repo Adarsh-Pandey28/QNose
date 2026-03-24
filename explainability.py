@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 
 def main():
     print("--- Running SHAP Explainability ---")
-    df = pd.read_csv('data/parkinsons.csv')
-    df = df.drop('name', axis=1)
-    X = df.drop('status', axis=1)
+    df = pd.read_csv('data/qnose_synthetic_dataset.csv')
+    df = df[df['disease_label'].isin(['Parkinsons', 'Healthy'])]
+    
+    feature_cols = joblib.load('feature_cols.pkl')
+    X = df[feature_cols]
     
     scaler = joblib.load('scaler.pkl')
     pca = joblib.load('pca.pkl')
@@ -17,15 +19,18 @@ def main():
     X_scaled = scaler.transform(X)
     X_pca = pca.transform(X_scaled)
     
-    # 1. Take a sample Parkinson's patient for explainability
-    parkinsons_idx = np.where(df['status'] == 1)[0][0]
-    sample = X_pca[parkinsons_idx:parkinsons_idx+1]
+    # Take a sample Parkinson's patient for explainability
+    parkinsons_idx = np.where(df['disease_label'] == 'Parkinsons')[0]
+    if len(parkinsons_idx) > 0:
+        sample = X_pca[parkinsons_idx[0]:parkinsons_idx[0]+1]
+    else:
+        sample = X_pca[0:1] # fallback
     
-    # 2. Setup SHAP KernelExplainer
-    background = shap.kmeans(X_pca, 10)
+    # Downsample background to speed up SHAP
+    background = shap.kmeans(X_pca, min(10, len(X_pca)))
     explainer = shap.KernelExplainer(svm.predict, background)
     
-    # 3. Compute SHAP values
+    # Compute SHAP values
     shap_values = explainer.shap_values(sample)
     
     base_val = explainer.expected_value
@@ -37,7 +42,6 @@ def main():
                            data=sample[0], 
                            feature_names=["PCA-VOC 1", "PCA-VOC 2", "PCA-VOC 3", "PCA-VOC 4", "PCA-VOC 5"])
     
-    # 4. Plot Waterfall Chart
     plt.figure(figsize=(8, 5))
     shap.waterfall_plot(exp, show=False)
     plt.title("Why did QNose flag this breath sample?")
