@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import joblib
+import warnings
+warnings.filterwarnings("ignore")
 from sklearn.svm import SVC
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 import pennylane as qml

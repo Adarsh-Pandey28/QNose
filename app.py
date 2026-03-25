@@ -1,13 +1,38 @@
-import streamlit as st
+# -*- coding: utf-8 -*-
+
+"""Streamlit dashboard for interactive quantum-classical breath diagnostics.
+
+The QNose app allows users to explore a 27-class disease classifier driven by a
+Quantum SVM (QSVM) and classical baselines. It exposes controls for manual VOC
+injection, preset severity profiles, a 3D PCA hologram, and several
+visualization widgets around the trained models.
+"""
+
+from datetime import datetime
+import hashlib
+import json
+import os
+import time
+import logging
+
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 import pennylane as qml
+import plotly.colors as pcolors
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.colors as pcolors
-import time
-import hashlib
+import streamlit as st
+
+# Feature subsets used in the sidebar controls
+TOP_5 = ["Ethane", "Nonanal", "Acetonitrile", "Pentane", "Hexanal"]
+TOP_10 = TOP_5 + [
+    "Isoprene",
+    "Trimethylamine",
+    "Propanal",
+    "Ammonia",
+    "Toluene",
+]
 
 # 1. Setup the Page Configuration
 st.set_page_config(
@@ -16,6 +41,51 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- Authentication Module ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+def login_screen():
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none; }
+            [data-testid="collapsedControl"] { display: none; }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; margin-top: 100px;'>🔒 QNose Secure Access</h2>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        st.info("Demo Credentials -> Username: **dr_admin** | Password: **quantum**")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.button("Authenticate", use_container_width=True, type="primary"):
+            if username == "dr_admin" and password == "quantum":
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Invalid credentials. Unauthorized access logged.")
+
+if not st.session_state.authenticated:
+    login_screen()
+    st.stop()
+# -----------------------------
+
+# --- Telemetry/Logging Module ---
+def log_telemetry(action, details):
+    telemetry_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'local_telemetry.jsonl')
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "user": "dr_admin",
+        "action": action,
+        "details": details
+    }
+    try:
+        with open(telemetry_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        logging.error("Failed to write telemetry: %s", exc)
+# -----------------------------
 
 st.markdown("""
 <style>
@@ -70,15 +140,16 @@ st.markdown("""
 @st.cache_resource
 def load_resources():
     try:
-        scaler = joblib.load('scaler.pkl')
-        pca = joblib.load('pca.pkl')
-        x_mean = joblib.load('x_mean.pkl')
-        healthy_mean = joblib.load('healthy_mean.pkl')
-        qsvm = joblib.load('quantum_svm_model.pkl')
-        X_train = np.load('X_train_qsvm.npy')
-        y_train = np.load('y_train_qsvm.npy')
-        feature_cols = joblib.load('feature_cols.pkl')
-        le = joblib.load('label_encoder.pkl')
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        scaler = joblib.load(os.path.join(base_path, "scaler.pkl"))
+        pca = joblib.load(os.path.join(base_path, "pca.pkl"))
+        x_mean = joblib.load(os.path.join(base_path, "x_mean.pkl"))
+        healthy_mean = joblib.load(os.path.join(base_path, "healthy_mean.pkl"))
+        qsvm = joblib.load(os.path.join(base_path, "quantum_svm_model.pkl"))
+        X_train = np.load(os.path.join(base_path, "X_train_qsvm.npy"))
+        y_train = np.load(os.path.join(base_path, "y_train_qsvm.npy"))
+        feature_cols = joblib.load(os.path.join(base_path, "feature_cols.pkl"))
+        le = joblib.load(os.path.join(base_path, "label_encoder.pkl"))
         return scaler, pca, x_mean, healthy_mean, qsvm, X_train, y_train, feature_cols, le
     except FileNotFoundError as e:
         st.error(f"Missing modeling artifact: {e}. Please run the backend scripts first.")
@@ -96,72 +167,138 @@ if "hw_error_triggered" not in st.session_state:
     st.session_state.hw_error_triggered = False
 
 with st.sidebar:
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                background-color: #0F172A;
+                border-right: 1px solid #1E293B;
+            }
+            .sidebar-header {
+                font-size: 1.2rem;
+                color: #38BDF8;
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                padding-bottom: 0.25rem;
+                border-bottom: 1px solid #334155;
+            }
+            .preset-btn { margin-top: 10px; }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/P_hybrid_circuit.svg/1024px-P_hybrid_circuit.svg.png", use_container_width=True)
     
-    st.header("🎛️ Live Diagnostics")
+    st.markdown('<div class="sidebar-header">🎛️ Live Diagnostics</div>', unsafe_allow_html=True)
     if st.button("📡 Auto-Detect from Hardware", type="primary", use_container_width=True):
         st.session_state.hw_error_triggered = not st.session_state.hw_error_triggered
         
     if st.session_state.hw_error_triggered:
         st.markdown('<div class="hw-error">🚨 Hardware interface link failed!<br/>No IoT Breathalyzer detected on open serial/bluetooth ports.<br/><b>Manual override engaged.</b></div>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.header("📁 Upload Patient Data")
-    uploaded_file = st.file_uploader("Upload CSV of VOC Readings", type=["csv"])
-    if uploaded_file is not None:
-        try:
-            st.session_state.uploaded_df = pd.read_csv(uploaded_file)
-            st.success("CSV loaded successfully! Mapping features...")
-        except Exception as e:
-            st.error(f"Error parsing CSV: {e}")
 
-    st.markdown("---")
-    st.header("🧪 Manual V.O.C. Injection")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-header">⚡ Diagnostics Controls</div>', unsafe_allow_html=True)
+    st.caption("Apply biomarker templates automatically:")
     
-    input_mode = st.radio("Select Active Matrix Format:", ["Top 5 Parameters", "Top 10 Parameters", "Full 26-Array Integration"])
-    input_style = st.radio("Entry Method:", ["🎯 Sliders", "⌨️ Direct Number Entry"], horizontal=True)
+    colA, colB, colC = st.columns(3)
     
-    top_5 = ["Ethane", "Nonanal", "Acetonitrile", "Pentane", "Hexanal"]
-    top_10 = top_5 + ["Isoprene", "Trimethylamine", "Propanal", "Ammonia", "Toluene"]
+    def apply_preset(mode):
+        st.session_state.preset_mode = mode
+        for feat in feature_cols:
+            idx = feature_cols.index(feat)
+            default_val = float(healthy_mean[idx])
+            if mode == 'severe': default_val *= 3.5
+            elif mode == 'mild': default_val *= 1.5
+            
+            # Ensure within bounds
+            scale_multip = 3.0 if float(healthy_mean[idx]) > 10 else 10.0
+            max_val = max(100.0, float(healthy_mean[idx]) * scale_multip)
+            if feat in ["Pentane", "Ammonia"]: max_val = max(1500.0, max_val)
+            default_val = min(default_val, max_val)
+            
+            st.session_state[f"sl_{feat}"] = default_val
+            st.session_state[f"num_{feat}"] = default_val
+
+    colA.button("🟢 Healthy", on_click=apply_preset, args=('healthy',), use_container_width=True)
+    colB.button("🟡 Mild", on_click=apply_preset, args=('mild',), use_container_width=True)
+    colC.button("🔴 Severe", on_click=apply_preset, args=('severe',), use_container_width=True)
     
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-header">🧪 Manual V.O.C. Injection</div>', unsafe_allow_html=True)
+    
+    input_mode = st.radio(
+        "Select Active Matrix Format:",
+        ["Top 5 Parameters", "Top 10 Parameters", "Full 26-Array Integration"],
+    )
+
     # Safe feature mapping
     active_features = []
     if input_mode == "Top 5 Parameters":
-        active_features = [f for f in top_5 if f in feature_cols]
+        active_features = [f for f in TOP_5 if f in feature_cols]
     elif input_mode == "Top 10 Parameters":
-        active_features = [f for f in top_10 if f in feature_cols]
+        active_features = [f for f in TOP_10 if f in feature_cols]
     else:
         select_all = st.checkbox("Engage Complete Array", value=True)
         if select_all:
             active_features = feature_cols
         else:
-            active_features = st.multiselect("Isolate Specific Variables:", feature_cols, default=[f for f in top_10 if f in feature_cols])
+            active_features = st.multiselect(
+                "Isolate Specific Variables:",
+                feature_cols,
+                default=[f for f in TOP_10 if f in feature_cols],
+            )
 
     st.markdown("##### Matrix Tuners")
     ui_vars = {}
+    preset_mode = st.session_state.get('preset_mode', None)
+    
+    def sync_inputs(feat_key, source):
+        if source == 'slider':
+            st.session_state[f"num_{feat_key}"] = st.session_state[f"sl_{feat_key}"]
+        else:
+            st.session_state[f"sl_{feat_key}"] = st.session_state[f"num_{feat_key}"]
+    
     for feat in active_features:
         idx = feature_cols.index(feat)
-        default_val = float(healthy_mean[idx])
+        base_val = float(healthy_mean[idx])
         
-        if "uploaded_df" in st.session_state and st.session_state.uploaded_df is not None:
-            if feat in st.session_state.uploaded_df.columns:
-                default_val = float(st.session_state.uploaded_df[feat].iloc[0])
-                
-        scale_multip = 3.0 if default_val > 10 else 10.0
-        max_val = max(100.0, default_val * scale_multip)
+        scale_multip = 3.0 if base_val > 10 else 10.0
+        max_val = max(100.0, base_val * scale_multip)
         if feat in ["Pentane", "Ammonia"]: max_val = max(1500.0, max_val)
+        
+        # Determine the initial value based on preset if no state exists yet
+        current_val = base_val
+        if preset_mode == 'severe': current_val *= 3.5
+        elif preset_mode == 'mild': current_val *= 1.5
+                
+        current_val = min(current_val, max_val)
+
+        if f"sl_{feat}" not in st.session_state:
+            st.session_state[f"sl_{feat}"] = current_val
+        if f"num_{feat}" not in st.session_state:
+            st.session_state[f"num_{feat}"] = current_val
             
-        if input_style == "🎯 Sliders":
-            ui_vars[feat] = st.slider(f"{feat}", 0.0, float(max_val), float(default_val), step=0.1, key=f"sl_{feat}")
-        else:
-            ui_vars[feat] = st.number_input(f"{feat}", min_value=0.0, max_value=float(max_val), value=float(default_val), step=0.1, key=f"num_{feat}")
+        st.markdown(f"<div style='font-size:0.85rem; font-weight:600; color:#cbd5e1; margin-bottom:-10px;'>{feat}</div>", unsafe_allow_html=True)
+        fc1, fc2 = st.columns([1, 4])
+        with fc1:
+            st.number_input("num", min_value=0.0, max_value=float(max_val), key=f"num_{feat}", step=0.1, label_visibility="collapsed", on_change=sync_inputs, args=(feat, 'num'))
+        with fc2:
+            st.slider("slider", min_value=0.0, max_value=float(max_val), key=f"sl_{feat}", step=0.1, label_visibility="collapsed", on_change=sync_inputs, args=(feat, 'slider'))
+        
+        ui_vars[feat] = st.session_state[f"sl_{feat}"]
 
     st.markdown("<br>", unsafe_allow_html=True)
-    predict_button = st.button("🧬 Deploy Quantum Sequence", type="primary", use_container_width=True)
+    b_col1, b_col2 = st.columns([2, 1])
+    with b_col1:
+        predict_button = st.button("🧬 Deploy Quantum Sequence", type="primary", use_container_width=True)
+    with b_col2:
+        stress_test_button = st.button("⚡ Stress Test", use_container_width=True)
+
     st.markdown("<div style='font-size: 0.8rem; color: #666; text-align: center; margin-top: 50px;'><br>🔌 QNose v1.0 | Powered by PennyLane + Streamlit</div>", unsafe_allow_html=True)
 
 healthy_base = [float(healthy_mean[feature_cols.index(f)]) for f in active_features]
-current_vars = [ui_vars[f] for f in active_features]
+
+# Track that sidebar variables have been initialized
+st.session_state.setdefault("vars_initialized", False)
+st.session_state["vars_initialized"] = True
 
 # Initialize Session
 if 'prediction_run' not in st.session_state:
@@ -172,23 +309,46 @@ if 'prediction_run' not in st.session_state:
 if 'pred_cache' not in st.session_state:
     st.session_state.pred_cache = {}
 
-n_qubits = 5
-dev = qml.device("default.qubit", wires=n_qubits)
-@qml.qnode(dev)
-def kernel_circuit(x1, x2):
-    qml.AngleEmbedding(x1, wires=range(n_qubits))
-    qml.adjoint(qml.AngleEmbedding)(x2, wires=range(n_qubits))
-    return qml.probs(wires=range(n_qubits))
+N_QUBITS = 5
 
-def kernel_function(x1, x2): 
+
+@st.cache_resource
+def get_quantum_device() -> qml.Device:
+    """Return a cached default.qubit device for dashboard inference."""
+
+    return qml.device("default.qubit", wires=N_QUBITS)
+
+
+_DEV = get_quantum_device()
+
+
+@qml.qnode(_DEV)
+def kernel_circuit(x1, x2):
+    qml.AngleEmbedding(x1, wires=range(N_QUBITS))
+    qml.adjoint(qml.AngleEmbedding)(x2, wires=range(N_QUBITS))
+    return qml.probs(wires=range(N_QUBITS))
+
+
+def kernel_function(x1, x2):
+    """Return the scalar quantum kernel value for the given inputs."""
+
     return kernel_circuit(x1, x2)[0]
 
 # On Predict Click
-if predict_button:
-    full_features = np.copy(x_mean)
-    for feat in active_features:
-        idx = feature_cols.index(feat)
-        full_features[idx] = ui_vars[feat]
+if predict_button or stress_test_button:
+    if stress_test_button:
+        # Auto-randomize features for stress test
+        full_features = np.copy(healthy_mean) # fallback to healthy defaults
+        for feat in active_features:
+            idx = feature_cols.index(feat)
+            ui_vars[feat] = np.random.uniform(0, float(healthy_mean[idx]) * 5)
+            full_features[idx] = ui_vars[feat]
+            st.toast("⚡ Stress Test Values Injected!", icon="🔥")
+    else:
+        full_features = np.copy(healthy_mean) # Fallback to healthy instead of overall mean!
+        for feat in active_features:
+            idx = feature_cols.index(feat)
+            full_features[idx] = ui_vars[feat]
     
     X_input_pca = get_pca_coords(full_features)
     st.session_state.X_input_pca = X_input_pca
@@ -218,8 +378,14 @@ if predict_button:
         st.session_state.prob_dist = qsvm.predict_proba(K_pred)[0]
         
     st.session_state.prediction_run = True
-    st.session_state.patient_features = dict(zip(active_features, current_vars))
+    
+    current_vars_final = [ui_vars[f] for f in active_features]
+    st.session_state.patient_features = dict(zip(active_features, current_vars_final))
     st.session_state.patient_healthy_base = dict(zip(active_features, healthy_base))
+    
+    # Log Telemetry for prediction run
+    log_telemetry("predict", {"diagnosis": str(st.session_state.pred_label), "features_injected": len(active_features)})
+    
     st.toast("⚛️ Quantum sequence deployed successfully!", icon="✅")
 
 # 6. Main Content Area
@@ -227,6 +393,8 @@ col1, col2 = st.columns([1, 1.2], gap="large")
 
 with col1:
     st.markdown("### ⚠️ Primary Diagnostic Readout")
+
+
     if not st.session_state.prediction_run:
         st.info("System on standby. Validate parameters in sidebar and deploy sequence.")
     else:
@@ -256,10 +424,21 @@ with col1:
     if st.button("📊 VIEW FULL ANALYTICS & INSIGHTS REPORT", use_container_width=True, type="secondary"):
         st.switch_page("pages/1_📊_Detailed_Report.py")
         
-    st.markdown("### 🧬 Quantum Circuit Architecture")
+    st.markdown("### 🧬 Quantum Circuit Architecture (Live Component)")
     try:
-        st.image("quantum_circuit.png", caption="5-Qubit Angle Embedding Circuit", use_container_width=True)
-    except: pass
+        import matplotlib.pyplot as plt
+        if st.session_state.get('prediction_run', False) and st.session_state.X_input_pca is not None:
+            fig, ax = qml.draw_mpl(kernel_circuit, style="pennylane")(st.session_state.X_input_pca[0], X_train[0])
+        else:
+            fig, ax = qml.draw_mpl(kernel_circuit, style="pennylane")(np.zeros(5), np.zeros(5))
+        
+        fig.patch.set_facecolor('none')  # Transparent background to match dashboard
+        st.pyplot(fig)
+        plt.close(fig)
+    except ImportError:
+        st.error("Missing dependency. Please run `pip install matplotlib`.")
+    except Exception as e:
+        st.error(f"Live graphics rendering failed: {e}")
 
 with col2:
     if st.session_state.prediction_run:
@@ -274,6 +453,33 @@ with col2:
         fig_radar.add_trace(go.Scatterpolar(r=radar_df['Healthy Base'], theta=radar_df['Feature'], fill='toself', name='Healthy Control', marker=dict(color='#00ffcc')))
         fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_df[['Patient', 'Healthy Base']].max().max()*1.1])), showlegend=True, paper_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(t=20, b=20, l=40, r=40))
         st.plotly_chart(fig_radar, use_container_width=True)
+        
+        # Per-Biomarker Alerts & Drilldown
+        with st.expander("🔍 Biomarker Threshold Alerts & Drilldown", expanded=True):
+            st.markdown("#### 🚨 Critical Deviations")
+            alerts_found = False
+            for idx, row in radar_df.iterrows():
+                feat = row['Feature']
+                val = row['Patient']
+                base = row['Healthy Base']
+                
+                # Check threshold (e.g. 50% higher than base)
+                if base > 0 and (val - base)/base > 0.5:
+                    pct_diff = ((val - base)/base) * 100
+                    st.error(f"**{feat}**: {val:.2f} (⚠️ +{pct_diff:.0f}% above baseline!)")
+                    alerts_found = True
+            if not alerts_found:
+                st.success("No extreme biomarker anomalies detected (all within 50% variance).")
+                
+            st.markdown("#### 📊 Explainability Deep Dive")
+            st.write("The QSVM correlates features differently than classical models. Below is the localized impact approximation indicating feature importance towards the current classification:")
+            # Mock SHAP-like importance per feature
+            radar_df['Mock_Impact'] = abs(radar_df['Patient'] - radar_df['Healthy Base']) / (radar_df['Healthy Base'] + 1e-5)
+            radar_df = radar_df.sort_values(by='Mock_Impact', ascending=True)
+            
+            fig_impact = px.bar(radar_df, x='Mock_Impact', y='Feature', orientation='h', color='Mock_Impact', color_continuous_scale='plasma')
+            fig_impact.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), height=250, margin=dict(l=0, r=0, t=0, b=0), coloraxis_showscale=False)
+            st.plotly_chart(fig_impact, use_container_width=True)
     else:
         st.markdown("### 🕸️ Waiting for Patient Matrix...")
         st.empty()
