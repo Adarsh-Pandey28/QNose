@@ -17,39 +17,57 @@ st.set_page_config(
 st.markdown("""
 <style>
     .report-header {
-        background: linear-gradient(90deg, #101525, #1d0033);
-        padding: 2rem;
-        border-radius: 10px;
-        border-left: 5px solid #b066ff;
+        background: linear-gradient(135deg, #150020, #0a1128, #1d0033);
+        padding: 2.5rem;
+        border-radius: 12px;
+        border-left: 6px solid #00ffcc;
         margin-bottom: 2rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
-    .report-header h2 { margin: 0; color: #fff; font-weight: 700; }
-    .report-header p { margin: 0; color: #a1a1a1; font-size: 1.1rem; }
+    .report-header h2 { margin: 0; color: #fff; font-weight: 800; font-size: 2.2rem; }
+    .report-header p { margin: 0; color: #00ffcc; font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;}
     
     .insight-card {
-        background: rgba(20, 20, 25, 0.8);
+        background: rgba(30, 30, 40, 0.6);
         padding: 1.5rem;
-        border-radius: 10px;
-        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
         height: 100%;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease;
+    }
+    .insight-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(176, 102, 255, 0.5);
     }
     
     .status-alert {
-        font-size: 1.5rem;
-        font-weight: bold;
+        font-size: 1.8rem;
+        font-weight: 900;
         color: #ff4b4b;
+        background: rgba(255, 75, 75, 0.1);
+        padding: 10px 20px;
+        border-radius: 10px;
+        border-left: 4px solid #ff4b4b;
+        display: inline-block;
     }
     .status-safe {
-        font-size: 1.5rem;
-        font-weight: bold;
+        font-size: 1.8rem;
+        font-weight: 900;
         color: #00ff80;
+        background: rgba(0, 255, 128, 0.1);
+        padding: 10px 20px;
+        border-radius: 10px;
+        border-left: 4px solid #00ff80;
+        display: inline-block;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Add a back button 
-if st.button("← Return to Holographic Interface", type="secondary"):
+if st.button("⬅️ Return to Holographic Interface", type="secondary"):
     st.switch_page("app.py")
 
 st.markdown("""

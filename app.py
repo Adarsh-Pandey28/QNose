@@ -125,6 +125,10 @@ st.markdown("""
 <div class="hero">
     <h1>⚛️ QNose Multiplex Interface</h1>
     <p>Activate the Quantum Subspace Engine to synthesize structural permutations corresponding to 27 unique pathological signatures in real-time space.</p>
+    <div style="margin-top: 15px;">
+        <span style="background-color: #7C3AED; color: white; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; font-weight: bold; margin-right: 10px;">🧠 Core: Quantum SVM (PennyLane)</span>
+        <span style="background-color: #059669; color: white; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; font-weight: bold;">🔁 Simulated Qubits: 5</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
