@@ -1,4 +1,6 @@
-import streamlit as st
+import os
+
+content = r'''import streamlit as st
 import numpy as np
 import pandas as pd
 import joblib
@@ -314,3 +316,8 @@ with col2:
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)", font=dict(color="white", size=10), itemsizing='constant', traceorder='normal')
     )
     st.plotly_chart(fig_3d, use_container_width=True)
+'''
+
+with open(r"c:\Users\hp\OneDrive\Desktop\qc2\qnose\app.py", "w", encoding="utf-8") as f:
+    f.write(content)
+print("app.py rewritten successfully!")

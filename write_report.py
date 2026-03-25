@@ -1,4 +1,6 @@
-import streamlit as st
+import os
+
+content = r'''import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -110,3 +112,8 @@ except:
 st.markdown("<br><br>", unsafe_allow_html=True)
 if st.button("🔙 Return to Main Scanner"):
     st.switch_page("app.py")
+'''
+
+with open(r"c:\Users\hp\OneDrive\Desktop\qc2\qnose\pages\1_📊_Detailed_Report.py", "w", encoding="utf-8") as f:
+    f.write(content)
+print("page rewritten successfully!")
