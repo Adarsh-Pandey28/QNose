@@ -324,8 +324,8 @@ with col2:
         fig_3d.add_trace(go.Scatter3d(
             x=cls_data['Phase X'], y=cls_data['Phase Y'], z=cls_data['Phase Z'],
             mode='markers',
-            marker=dict(size=5, color=colors[i % len(colors)], opacity=0.3, line=dict(width=0.2, color='white')),
-            name=str(cls), showlegend=True,
+            marker=dict(size=3, color=colors[i % len(colors)], opacity=0.15, line=dict(width=0)),
+            name=str(cls), showlegend=False,
             hoverinfo='text', text=cls_data['Class Mapping']
         ))
         
@@ -342,15 +342,11 @@ with col2:
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         scene=dict(
-            xaxis=dict(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 204, 0.1)', zeroline=False, 
-                       showbackground=True, backgroundcolor='rgba(5, 5, 10, 0.8)', showticklabels=False, title=''),
-            yaxis=dict(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 204, 0.1)', zeroline=False, 
-                       showbackground=True, backgroundcolor='rgba(5, 5, 10, 0.8)', showticklabels=False, title=''),
-            zaxis=dict(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 204, 0.1)', zeroline=False, 
-                       showbackground=True, backgroundcolor='rgba(5, 5, 10, 0.8)', showticklabels=False, title='')
+            xaxis=dict(showgrid=False, zeroline=False, showbackground=False, showticklabels=False, title=''),
+            yaxis=dict(showgrid=False, zeroline=False, showbackground=False, showticklabels=False, title=''),
+            zaxis=dict(showgrid=False, zeroline=False, showbackground=False, showticklabels=False, title='')
         ),
         margin=dict(t=0, b=0, l=0, r=0), height=550,
-        legend=dict(yanchor="top", y=0.9, xanchor="left", x=0.01, font=dict(size=11, color="white"), bgcolor="rgba(0,0,0,0.6)", bordercolor="rgba(0,255,204,0.3)", borderwidth=1),
         scene_camera=dict(
             up=dict(x=0, y=0, z=1),
             center=dict(x=0, y=0, z=0),
